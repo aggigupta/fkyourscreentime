@@ -30,3 +30,15 @@ Use a personal test phone or a clean Android emulator, not somebody else's confi
 - [ ] Repeat on multiple manufacturers and current Android versions before a stable release.
 
 Do not manufacture screenshots or a passing device test report when no phone test has been performed.
+
+## v0.2.0 hardening checks
+
+Automated tests additionally cover the monotonic exhaustion latch, empty/lower usage snapshots, deferred removals, lookback accounting, shutdown, repeated pauses, and out-of-order events.
+
+- [ ] Exhaust Instagram, revoke Usage Access only, and reopen it while accessibility remains enabled: the saved lockout still returns Home.
+- [ ] Keyboard/pop-up windows do not clear an exhausted app’s guard. Enabled keyboard apps cannot be selected.
+- [ ] A newly reset day clears the exhaustion latch; a missing Android snapshot within the same day does not.
+- [ ] Instagram is selectable when preinstalled, while other system apps remain excluded.
+- [ ] Confirm update installation keeps the existing ledger and uses the same signing certificate.
+
+Website tests: run `node --test test/*.test.js` inside website/. These do not establish native Android enforcement.

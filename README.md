@@ -11,16 +11,17 @@ Enough is a small, offline Android app for people who open Instagram for a minut
 - Select downloaded, launchable apps and assign 1–240 minutes per app per day.
 - Count time already spent today, rather than giving a fresh budget at installation.
 - Freeze today's committed limits. Raising a limit or removing an app is scheduled for tomorrow.
-- Show a full-screen accessibility overlay over a selected app once its budget is exhausted.
+- Save an exhausted-app lockout, cover the selected app, and return to Home when its budget is exhausted. Reopening it repeats that guard while the app-limit service runs.
+- Keep an exhausted app blocked if Usage Access alone is revoked; accessibility enforcement and the saved lockout remain active.
 - Preserve daily totals in private on-device storage and reconcile them with Android usage events after a restart.
 - Reset at the next local midnight. The day's time zone is captured when that day starts; during the same boot, a monotonic deadline prevents a wall-clock change from immediately resetting the budget.
-- Keep launchers, system apps, the default phone dialer, and Enough itself out of the selectable app list.
+- Keep launchers, enabled keyboards, the default phone dialer, Enough itself, and essential system apps out of the picker. Instagram is permitted even when a manufacturer preinstalls it.
 
 ## What it cannot guarantee
 
 Android lets a personal phone's owner disable accessibility, revoke usage access, force-stop or uninstall an ordinary app, or clear its data. Enough deliberately does not interfere with Settings or hide its uninstall controls. A time change followed by reboot can also defeat the local day fence. Rooted devices are outside the threat model.
 
-Enforcement is an overlay, **not OS-level package suspension**. There may be a brief app appearance before the overlay is shown. Split-screen, picture-in-picture, cloned apps, other user profiles, browser versions of services, and manufacturer background restrictions need separate consideration. Preinstalled system apps are excluded in this alpha. Background media playback is not billed as foreground use. Time accounting is approximate, particularly around system dialogs and multi-window use.
+Enforcement is an overlay, **not OS-level package suspension**. There may be a brief app appearance before the overlay is shown. Split-screen, picture-in-picture, cloned apps, other user profiles, browser versions of services, and manufacturer background restrictions need separate consideration. Preinstalled system apps are excluded except the exact Instagram package. Background media playback is not billed as foreground use. Time accounting is approximate, particularly around system dialogs and multi-window use.
 
 Android's [package suspension API](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPackagesSuspended(android.content.ComponentName,%20java.lang.String%5B%5D,%20boolean)) requires device/profile-owner or delegated management privileges. That is a different setup from installing an ordinary personal app and is **not included** here.
 
@@ -77,7 +78,11 @@ The GitHub Actions workflow runs the same checks and makes the debug APK availab
 | `BudgetService` | Foreground package observation, local timer, blocking overlay |
 | `PackageSafety` | Excludes system and essential apps from selection |
 
-The implementation uses Android platform views and Java 17. It has no third-party runtime libraries.
+The implementation uses Android platform views and Java 17. It has no third-party runtime libraries. Version 0.2.0-alpha adds the durable exhaustion latch, shutdown-aware usage accounting, and immediate Home return.
+
+## Website
+
+The `website/` directory contains the Vercel-ready site, direct APK download flow, and a local browser-session timer. Browser mode cannot block Instagram or other apps. It is a voluntary timer with saved daily session budgets. No Supabase database or account system is required. Run `node --test test/*.test.js` inside `website/` for its 12 session-policy tests.
 
 ## Before calling this production-ready
 

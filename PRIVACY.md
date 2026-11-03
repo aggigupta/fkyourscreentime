@@ -10,7 +10,7 @@ Enough runs on the user's own Android device. Its manifest does not request inte
 
 **Installed app discovery:** Only launchable apps visible to the app are enumerated to let the user choose a budget. Essential/system apps and launchers are excluded from the picker. Enough does not request broad `QUERY_ALL_PACKAGES` access.
 
-**Stored information:** selected package identifiers and limits; pending next-day limits; selected-app daily used time; local day/time-zone and boot metadata needed for reset handling; disclosure acceptance; and a local uptime-based service heartbeat.
+**Stored information:** selected package identifiers and limits; pending next-day limits; selected-app daily used time and a durable set of exhausted apps for the day; local day/time-zone and boot metadata needed for reset handling; disclosure acceptance; and a local uptime-based service heartbeat.
 
 No analytics, advertising, remote reporting, cloud accounts, remote configuration, or data sale exists. Backup/transfer exclusions are declared in the manifest and backup rules. A device owner with root or debugging access may still inspect device-local files.
 
@@ -19,3 +19,7 @@ No analytics, advertising, remote reporting, cloud accounts, remote configuratio
 Permissions can be disabled in Android settings. Data clearing or uninstall removes Enough's local data and also bypasses its personal-commitment enforcement. Today's budget has no in-app editing or deletion override; modifications are staged for the next day.
 
 Reports shared publicly on GitHub are outside the app. Remove personal information before posting a bug report.
+
+## Website
+
+The static website provides a direct APK download and an optional browser-session timer. Timer state stays in localStorage. No Supabase, account, analytics SDK, or cross-app observation is included. The Vercel hosting service processes normal requests to serve the page and downloads. Browser storage and the device clock are not tamper-proof.
