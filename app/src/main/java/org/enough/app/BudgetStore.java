@@ -10,6 +10,8 @@ import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Collections;
+import java.util.Set;
 
 /** One private local ledger. Today's plan has no editing or override API. */
 public final class BudgetStore {
@@ -28,7 +30,7 @@ public final class BudgetStore {
   if(!initial && !BudgetRules.dayExpired(now,elapsed,boot,prefs.getLong("reset_wall",0),prefs.getLong("reset_elapsed",0),prefs.getInt("boot",-2))) return;
   String zone=ZoneId.systemDefault().getId(); long reset=BudgetRules.nextMidnight(now,zone);
   long start=Instant.ofEpochMilli(now).atZone(ZoneId.of(zone)).toLocalDate().atStartOfDay(ZoneId.of(zone)).toInstant().toEpochMilli();
-  SharedPreferences.Editor edit=prefs.edit().putLong("reset_wall",reset).putLong("reset_elapsed",elapsed+reset-now).putInt("boot",boot).putLong("day_start",start).putString("zone",zone).putString("spent","{}");
+  SharedPreferences.Editor edit=prefs.edit().putLong("reset_wall",reset).putLong("reset_elapsed",elapsed+reset-now).putInt("boot",boot).putLong("day_start",start).putString("zone",zone).putString("spent","{}").putStringSet("exhausted",Collections.emptySet());
   if(prefs.contains("next_plan")) edit.putString("plan",prefs.getString("next_plan","{}")).remove("next_plan");
   edit.commit();
  }
@@ -53,14 +55,23 @@ public final class BudgetStore {
  public synchronized void add(String pkg,long millis){
   ensureDay(); long limit=read("plan").getOrDefault(pkg,0L); if(limit<=0||millis<=0)return;
   Map<String,Long> spent=read("spent"); long old=spent.getOrDefault(pkg,0L);
-  spent.put(pkg,Math.min(limit,old+Math.min(millis,limit)));prefs.edit().putString("spent",json(spent)).commit();
+  spent.put(pkg,Math.min(limit,old+Math.min(millis,limit)));persistUsage(spent,read("plan"));
  }
  public synchronized void reconcile(Map<String,Long> totals){
   ensureDay(); Map<String,Long> spent=read("spent"),plan=read("plan");
   for(String pkg:plan.keySet())spent.put(pkg,Math.min(plan.get(pkg),Math.max(spent.getOrDefault(pkg,0L),totals.getOrDefault(pkg,0L))));
-  prefs.edit().putString("spent",json(spent)).commit();
+  persistUsage(spent,plan);
  }
- public synchronized boolean blocked(String pkg){return BudgetRules.blocked(limit(pkg),used(pkg));}
+ private void persistUsage(Map<String,Long> spent,Map<String,Long> plan){
+  Set<String> exhausted=ExhaustionLatch.merge(prefs.getStringSet("exhausted",Collections.emptySet()),plan,spent);
+  prefs.edit().putString("spent",json(spent)).putStringSet("exhausted",exhausted).commit();
+ }
+ public synchronized boolean blocked(String pkg){
+  ensureDay();
+  if(prefs.getStringSet("exhausted",Collections.emptySet()).contains(pkg))return true;
+  if(!BudgetRules.blocked(limit(pkg),used(pkg)))return false;
+  persistUsage(read("spent"),read("plan"));return true;
+ }
  public synchronized long dayStart(){ensureDay();return prefs.getLong("day_start",0);}
  public synchronized long resetAt(){ensureDay();return prefs.getLong("reset_wall",0);}
  public synchronized String zone(){ensureDay();return prefs.getString("zone",ZoneId.systemDefault().getId());}

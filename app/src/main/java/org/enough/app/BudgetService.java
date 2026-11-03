@@ -6,6 +6,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ComponentName;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -29,7 +31,7 @@ public final class BudgetService extends AccessibilityService {
  private final Handler handler=new Handler(Looper.getMainLooper());
  private BudgetStore store;
  private String foreground="",overlayPackage="";
- private long lastTick,lastReconcile;
+ private long lastTick,lastReconcile,lastEject;
  private View overlay;
  private WindowManager windows;
  private final BroadcastReceiver screenReceiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
@@ -39,9 +41,10 @@ public final class BudgetService extends AccessibilityService {
  private final Runnable pulse=new Runnable(){@Override public void run(){
   if(store==null)return;
   account();store.heartbeat();
-  if(!UsageReader.allowed(BudgetService.this)){foreground="";hideBlock();}
-  else {if(SystemClock.elapsedRealtime()-lastReconcile>15_000)reconcile();enforce();}
-  handler.postDelayed(this,750);
+  // Losing Usage Access must not unlock an app whose limit is already exhausted.
+  // Accessibility still supplies foreground-package identity and the local ledger.
+  if(UsageReader.allowed(BudgetService.this)&&SystemClock.elapsedRealtime()-lastReconcile>5_000)reconcile();
+  enforce();handler.postDelayed(this,500);
  }};
  @Override protected void onServiceConnected(){
   store=BudgetStore.get(this);
@@ -56,26 +59,39 @@ public final class BudgetService extends AccessibilityService {
   String pkg=event.getPackageName().toString();
   // Our accessibility overlay must not mistake itself for leaving the restricted app.
   if(overlay!=null&&pkg.equals(getPackageName()))return;
+  // Keyboard/pop-up windows are not evidence that the protected activity was left.
+  if(!activityWindow(pkg,event.getClassName())&&store.limit(pkg)<=0&&!store.blocked(pkg))return;
   account();foreground=pkg;lastTick=SystemClock.elapsedRealtime();
   if(!pkg.equals(overlayPackage))hideBlock();enforce();
+ }
+ private boolean activityWindow(String pkg,CharSequence className){
+  if(className==null)return false;
+  try{getPackageManager().getActivityInfo(new ComponentName(pkg,className.toString()),0);return true;}
+  catch(PackageManager.NameNotFoundException e){return false;}
  }
  private boolean interactive(){PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);return power!=null&&power.isInteractive()&&(keyguard==null||!keyguard.isKeyguardLocked());}
  private void account(){
   long now=SystemClock.elapsedRealtime();long delta=Math.max(0,now-lastTick);lastTick=now;
   // Do not charge long process stalls as definite foreground usage; system events reconcile gaps.
-  if(store!=null&&interactive()&&UsageReader.allowed(this)&&delta<=5000)store.add(foreground,delta);
+  if(store!=null&&interactive()&&delta<=5000)store.add(foreground,delta);
  }
  private void reconcile(){
   lastReconcile=SystemClock.elapsedRealtime();
   if(store==null||!UsageReader.allowed(this))return;
   UsageReader.Snapshot snapshot=UsageReader.read(this,store.dayStart(),System.currentTimeMillis());
-  store.reconcile(snapshot.totals);foreground=interactive()?snapshot.foreground:"";lastTick=SystemClock.elapsedRealtime();
+  if(!snapshot.available)return;
+  store.reconcile(snapshot.totals);
+  if(snapshot.observed)foreground=interactive()?snapshot.foreground:"";
+  lastTick=SystemClock.elapsedRealtime();
   if(!foreground.equals(overlayPackage))hideBlock();
  }
  private void enforce(){
   if(!interactive()){hideBlock();return;}
-  if(store==null||!UsageReader.allowed(this)||!store.blocked(foreground)||!PackageSafety.canLimit(this,foreground)){hideBlock();return;}
+  if(store==null||!store.blocked(foreground)||!PackageSafety.canLimit(this,foreground)){hideBlock();return;}
   if(overlay==null)showBlock(foreground);
+  // An exhausted app is ejected, rather than relying on a dismissible overlay alone.
+  long now=SystemClock.elapsedRealtime();
+  if(now-lastEject>=1000){lastEject=now;performGlobalAction(GLOBAL_ACTION_HOME);}
  }
  private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
  private TextView text(String value,int size,int color){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);t.setPadding(0,dp(12),0,dp(12));return t;}
@@ -93,6 +109,6 @@ public final class BudgetService extends AccessibilityService {
   try{windows.addView(content,params);overlay=content;overlayPackage=pkg;}catch(RuntimeException e){performGlobalAction(GLOBAL_ACTION_HOME);}
  }
  private void hideBlock(){if(overlay!=null){try{windows.removeView(overlay);}catch(RuntimeException ignored){}overlay=null;overlayPackage="";}}
- @Override public void onInterrupt(){account();foreground="";hideBlock();}
+ @Override public void onInterrupt(){account();enforce();}
  @Override public void onDestroy(){handler.removeCallbacksAndMessages(null);account();hideBlock();try{unregisterReceiver(screenReceiver);}catch(IllegalArgumentException ignored){}super.onDestroy();}
 }
