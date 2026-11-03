@@ -20,6 +20,8 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Test, check, and build
         run: bash gradlew testDebugUnitTest lintDebug assembleDebug
+      - name: Test browser-session policy
+        run: node --test website/test/*.test.js
       - uses: actions/upload-artifact@v4
         with:
           name: Enough-debug-apk
