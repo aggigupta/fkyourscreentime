@@ -8,7 +8,7 @@ Static, account-free website for direct Android APK downloads and a voluntary br
 
 ## Deployment
 
-Deploy this directory as a Vercel static project with no framework, install command, or build command. The output directory is `.`. `vercel.json` provides security and APK download headers. Do not deploy the Android repository root as the website.
+Deploy this directory as a Vercel static project with no framework or install command. The output directory is `.` and the build command is `node prepare-downloads.mjs`. The script verifies a supplied APK, or fetches the versioned public release APK if the build starts from Git source without that generated artifact. It refuses to deploy a binary that does not match the committed SHA-256 checksum. `vercel.json` provides security and APK download headers. Do not deploy the Android repository root as the website.
 
 For a new Android release, copy the built APK and checksum into `downloads/`, update the versioned download links in index.html, and deploy the exact matching website source. APKs are generated release artifacts and are intentionally ignored by the source repository's .gitignore.
 
