@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {emptyDay, setGoal, startSession, advance, endSession, remaining, validate} from '../focus-engine.js';
+const noon = new Date(2026, 10, 3, 12).getTime();
+const planned = (minutes = 20) => setGoal(emptyDay(noon), minutes, noon);
+test('budget changes apply tomorrow, not to an exhausted day', () => {let s=startSession(planned(1),1,noon);s=advance(s,noon+60000);s=setGoal(s,60,noon+61000);assert.equal(s.goalMinutes,1);assert.equal(s.tomorrowMinutes,60);assert.equal(remaining(s),0);assert.throws(()=>startSession(s,1,noon+62000));});
+test('closing and returning still charges elapsed session time', () => {const saved=JSON.parse(JSON.stringify(startSession(planned(),10,noon)));const s=advance(saved,noon+300000);assert.equal(s.usedMs,300000);});
+test('reloading cannot restart an active session', () => {const saved=JSON.parse(JSON.stringify(startSession(planned(),10,noon)));assert.throws(()=>startSession(saved,10,noon+1000));});
+test('usage never exceeds the chosen session', () => {const s=advance(startSession(planned(),5,noon),noon+600000);assert.equal(s.usedMs,300000);assert.equal(s.session,null);});
+test('session length is capped by remaining daily time', () => {const s=advance(startSession(planned(2),60,noon),noon+300000);assert.equal(s.usedMs,120000);assert.equal(remaining(s),0);});
+test('ending early keeps the time already used', () => {const s=endSession(startSession(planned(),10,noon),noon+120000);assert.equal(s.usedMs,120000);assert.equal(s.session,null);});
+test('repeated rendering does not double count', () => {const s=advance(startSession(planned(),10,noon),noon+60000);assert.equal(advance(s,noon+60000).usedMs,s.usedMs);});
+test('a backward clock reading does not refund session time', () => {const s=advance(startSession(planned(),10,noon),noon+120000);assert.equal(advance(s,noon+30000).usedMs,120000);});
+test('a new day applies tomorrow’s plan and resets usage', () => {const p=setGoal(planned(10),30,noon);const s=advance(p,p.resetAt);assert.equal(s.goalMinutes,30);assert.equal(s.usedMs,0);assert.equal(s.tomorrowMinutes,null);});
+test('one tab cannot create a second session from the current state', () => {const s=startSession(planned(),10,noon);assert.throws(()=>startSession(s,5,noon+1000));});
+test('reject invalid limits and saved state', () => {assert.throws(()=>setGoal(planned(),0,noon));assert.throws(()=>setGoal(planned(),241,noon));assert.throws(()=>validate({version:1}));});
+test('a session is cut off at the captured daily reset', () => {const p=planned(240);const near=p.resetAt-30000;const s=startSession(p,5,near);assert.equal(s.session.endAt,p.resetAt);const next=advance(s,p.resetAt);assert.equal(next.usedMs,0);assert.equal(next.session,null);});
