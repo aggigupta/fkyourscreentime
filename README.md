@@ -55,7 +55,7 @@ Open the repository in Android Studio and let it locate your SDK, or set `ANDROI
 
 ```sh
 # macOS / Linux
-./gradlew testDebugUnitTest lintDebug assembleDebug
+bash gradlew testDebugUnitTest lintDebug assembleDebug
 
 # Windows
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
